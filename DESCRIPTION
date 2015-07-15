@@ -1,0 +1,17 @@
+Package: BioC2015OpenCyto
+Type: Package
+Title: Analyzing Designed Experiments with OpenCyto
+Version: 1.0
+Date: 2015-07-10
+Author: Greg Finak and Mike Jiang
+Maintainer: Greg Finak <gfinak@fhcrc.org>
+Description: Data and code demonstrating the analysis of designed experiments using OpenCyto.
+License: GPL 3.0
+DataVersion: 0.1.0
+Imports: flowWorkspace,
+    openCyto,
+    ggcyto,
+    data.table (>= 1.9.4)
+Suggests: knitr, 
+    RColorBrewer
+VignetteBuilder: knitr

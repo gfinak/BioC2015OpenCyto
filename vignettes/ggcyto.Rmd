@@ -1,0 +1,329 @@
+---
+title: 'ggcyto : Visualize `Cytometry` data with `ggCyto`'
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{VisualizationWithggCyto}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, echo=FALSE, results = "hide"}
+library(knitr)
+library(RColorBrewer)
+opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, fig.height= 5, fig.width= 7)
+```
+
+## Visualization of Cytometry data using the new `ggCyto` package. 
+
+The `ggCyto` package was developed at the RGLab by [Mike Jiang](http://www.rglab.org/members.html). It is new and under active development.  
+Here we aim to demonstrate some of its functionality.
+
+By overloading `ggplot`'s  `fortify` method, we make cytometry data fully compatible with `ggplot`. 
+
+```{r, echo = FALSE, results = "hide"}
+library(ggcyto)
+library(BioC2015OpenCyto)
+# load data
+data(tbdata)
+```
+
+<!--- #### Data Transformation
+We use the `tbdata` data set from the `BioC2015OpenCyto` package. (@Lin:2015hy).
+
+The `tbdata` `GatingSet` doesn't have a data transformation associated with it. We begin by re-creating one and attaching it to the data set. 
+
+The data were originally processed in FlowJo, so we'll use the built-in FlowJo-compatible transformation. 
+
+We do this by: 
+
+1. Extracting fluorescence channel names
+2. Constructing a `transformList` using the `flowJoTrans()` transform.
+3. Assigning the `transformList` to the `tbdata` GatingSet.
+-->
+```{r, echo = FALSE, eval=FALSE}
+#Add default FlowJo transformation since the original was not copied while downsampling.
+fluorescence_channels <- as.vector(parameters(getCompensationMatrices(tbdata[[1]])))
+#Create a default FlowJo transformation on all channels.
+transList <- transformList(fluorescence_channels, flowJoTrans())
+#Add the transformation to the dataset
+flowWorkspace:::.addTrans(tbdata@pointer, transList)
+```
+
+#### Subsetting the data
+
+It usually doesn't make sense to visualize 100's or FCS samples, so we'll subset the data for visualization, restricting ourselves to the first two subjects. We can use `subset` on the GatingSet object to subset by `pData` variables. This is pretty standard `BioConductor` behavior.
+
+```{r}
+# Subset the data for a demo of visualization.
+ptids <- unique(pData(tbdata)[["PID"]])[1:2] 
+tbdata <- subset(tbdata, `PID` %in% ptids)
+```
+
+Furthermore, we'll focus on the CD3+ cell subsets for this demonstration. These are extracted into a `flowSet`. 
+
+```{r}
+# extract the CD3 population
+fs <- getData(tbdata, "3+")
+```
+
+### [ggcyto + flowSet](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggcyto.flowSet.md)
+#### 1-dimensional plots - histograms.
+
+The simplest way to visualize FCM data is via one-dimensional histograms or density plots. This is supported using the standard `ggplot2` `geom_xxxx` interface.
+
+Here we specify that we want a histogram, and we map the aesthetic `x` to the variable `CD4`, which corresponds to the dimension/marker we want to plot.
+
+`ggCyto` automatically facets by the `name` variable, which usually represents individual FCS files. 
+
+```{r}
+p <- ggcyto(fs, aes(x = CD4)) 
+p1 <- p + geom_histogram(bins = 60) 
+p1
+```
+
+#### Change the limits to reflect the instrument range.
+
+`ggCyto` will show you the full range of the data, which is often more than the instrument range. We can restrict the range to the instrument range, using `ggcyto_par_set`.
+
+Valid values are `data` and `instrument`.
+
+
+```{r}
+myPars <- ggcyto_par_set(limits = "instrument")
+p1 + myPars
+```
+
+#### View the default parameter settings
+
+We can print the default parameter settings using `ggcyto_par_default`.
+
+```{r,results='markup'}
+# print the default settings
+ggcyto_par_default()
+```
+
+#### Density plot - 1D
+Of course, other geometries are supported. `geom_density` will generate a denstiy plot rather than a histogram.
+
+```{r}
+p = p + geom_density() +  geom_density(fill = "black") + myPars
+p
+```
+
+### Facetting is also supported.
+As you saw, the default faceting is using the `name` variable. But, any variable defined in the `pData` slot of the `flowSet` is valid. 
+
+```{r,results='asis'}
+kable(pData(fs))
+```
+
+Here we facet by *Peptide* stimulation and *known_response* (which comes from previous analysis).
+
+```{r}
+#change facetting (default is facet_wrap(~name))
+p + facet_grid(known_response ~ Peptide)
+```
+
+#### 2-dimensional dot plots
+
+The typical view of FCM data is using two-dimensional dot plots. Hexagonal binning is a popular and rapid was to view the data. 
+
+Again, axis limits need to be specified since by default `ggcyto` will present all the data, includig outliers that have unusually large positive or negative values. 
+
+```{r}
+# 2d hexbin
+p <- ggcyto(fs, aes(x = CD4, y = CD8)) + geom_hex(bins = 60) + ylim(c(-100,4e3)) + xlim(c(-100,3e3))  
+p
+```
+
+#### Changing the color scale
+The default colour scale can be changed using `scale_fill_gradient`.
+
+For example, a color brewer scale using the `PiYG` scale, with a square root transform of the counts.
+
+```{r}
+p + scale_fill_gradientn(colours = brewer.pal(n=8,name="PiYG"),trans="sqrt")
+```
+
+Or grayscale. 
+
+```{r}
+p + scale_fill_gradient(trans = "sqrt", low = "gray", high = "black")
+```
+
+### Contours
+`geom_density2d` behaves as expected.
+
+```{r}
+ggcyto(fs, aes(x = CD4, y = CD8))+ geom_hex(bins = 60)+geom_density2d(colour = "black")+ylim(c(-100,4e3)) + xlim(c(-100,3e3))  
+```
+
+### Plotting gates for flowSet objects
+
+It's possible to plot gates on top of the data.
+
+One way to do so is to extract the gate from the `GatingSet` and add it explicitly.
+
+```{r}
+# add geom_gate layer
+g <- getGate(tbdata, "4+")
+p <- p + geom_gate(g)
+p
+```
+
+Overlay statistics for cell populations.
+
+```{r}
+# add geom_stats
+p + geom_stats()
+```
+
+
+```{r, echo=FALSE}
+### transform data (somehow it is not working)
+# #transform data back to raw scale
+# inverse.trans <- getTransformations(gs[[1]], inverse = T)[[" APC Cy7-A"]]
+
+###  There is an issue in transform method for ncdfFlowSet that
+## new cdf file created at the same folder as original cdf which could be probmatic for gs folder
+# fs_raw <- transform(as(fs, "flowSet"), transformList("<APC Cy7-A>", inverse.trans), cdfFile =)
+# p1 <- ggcyto(fs_raw, aes(x = CD4)) + geom_area(stat = "density") 
+# p1 + myPars
+# 
+# # display data in log scale
+# p1 + scale_x_flowJo_biexp() 
+```
+
+
+### Use a GatingSet rather than flowSet
+
+#### [ggcyto + GatingSet](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggcyto.GatingSet.md)
+As before, but we can use a GatingSet object rather than a flowSet.
+Again, dimensions are mapped to aesthetics using marker names.
+
+```{r}
+#use customized range to overwrite the default data limits 
+myPars <- ggcyto_par_set(limits = list(y = c(-100,4e3), x = c(-100,3e3)))
+p <- ggcyto(tbdata, aes(x = CD4, y = CD8), subset = "3+") 
+p <- p + geom_hex(bins = 64) + myPars
+p
+```
+
+If we want to use marker names on the axes rather than channel and marker names, that is possible.
+
+```{r}
+#only display marker on axis
+p <- p + labs_cyto("marker")
+p
+```
+
+#### Plotting gates for GatingSet objects
+When plotting gates, we don't need to extract them explicitly as they're part of the object.
+
+
+One gate.
+
+```{r}
+# add gate
+p + geom_gate("4+")
+```
+
+Two gates.
+
+```{r}
+# add two gates
+p <- p + geom_gate(c("4+","8+")) 
+p
+```
+
+Overlay population statistics.
+
+```{r}
+p + geom_stats() 
+```
+
+Overlay population statistics for just one population.
+
+```{r}
+# add stats just for one specific gate
+p + geom_stats("4+")
+```
+
+Change the background color, style, and report the count rather than the percentage.
+
+```{r}
+# change stats type, background color and position
+p + geom_stats("4+", type = "count", size = 6,  color = "white", fill = "black", adjust = 0.3)
+```
+
+As you can see there is a great deal of flexibility in using the `ggplot2` interface to interact with FCM plots. 
+
+### Typical usage
+
+Say you want to plot the CD4 and CD8 cell populations, but don't necessarily know the parent population. 
+
+To do this with ggCyto would look like:
+
+```{r}
+#'subset' is ommitted
+p <- ggcyto(tbdata, aes(x = CD4, y = CD8)) + geom_hex(bins = 64) + myPars + geom_gate(c("4+", "8+"))
+p
+```
+
+We define the dimensions and the gates. There's no need to specify the parent population. ggCyto will subset the parent population and plot the relevant events.
+
+#### Alternately, we know the parent but don't know the child populations.
+
+The `subset` argument allows us to explicitly subset a parent population. When `subset` is specified, `ggCyto` plots *all* child populations. 
+
+```{r}
+p <- ggcyto(tbdata, aes(x = CD4, y = CD8), subset = "3+") + geom_hex(bins = 64) + geom_gate() + geom_stats() + myPars
+p 
+```
+
+### Data Transformations
+By default, `ggCyto` plots the data in the transformed space (if it's been transformed). For FCM data processed by flowJo, this is in [0,4096], or so-called *channel space*. 
+
+Because we store the data transformation, we can transform the axes and show the raw fluorescence intensities on the x and y axes using `axis_x_inverse_trans` and `axis_y_inverse_trans`.
+
+#### inverse transform the axes
+
+```{r}
+p + axis_x_inverse_trans() + axis_y_inverse_trans()
+```
+
+### The `ggcyto` object
+
+We have defined a `ggcyto` object that delays transformation the data until it is plotted. This makes things a little faster as we don't have to do any melting or reshaping of the underlying data until we need it.
+
+The `ggcyto` object is entirely `ggplot2` compatible, in terms of adding layers and parameters.
+
+```{r}
+class(p)
+class(p$data)
+```
+
+You can use `as` to return a `ggplot` object.
+
+```
+# To return a regular ggplot object
+p <- as.ggplot(p)
+
+class(p)
+class(p$data) # it is fortified now
+```
+
+### More information on using `ggplot` directly on `flowSet` objects:
+
+* [ggplot + flowSet1d](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggplot.flowSet.1d.md)
+* [ggplot + flowSet2d](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggplot.flowSet.2d.md)
+* [ggplot + flowSet + gate](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggplot.flowSet.gate.md)
+* [ggplot + flowSet + overlay](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggplot.flowSet.overlay.md)
+
+
+### Reporting bugs
+
+Please open issues and file bug reports or unexpected behaviour on our github page.
+[http://github.com/RGLab/ggcyto](http://github.com/RGLab/ggcyto)
+
+
