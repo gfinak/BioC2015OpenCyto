@@ -35,7 +35,7 @@ if (f != "") {
     if (file.exists(gsub("http://","",gsub("file://","",filepath)))) {
       message("Transferring data file.. please wait.")
       download.file(
-        url = localfilepath, mode = "wb",method = ifelse(grepl("file:",filepath),"internal","wget"), destfile = file.path(outdir,"tbdata",datafile), quiet =
+        url = filepath, mode = "wb",method = ifelse(grepl("file:",filepath),"internal","wget"), destfile = file.path(outdir,"tbdata",datafile), quiet =
           TRUE
       )
     }
