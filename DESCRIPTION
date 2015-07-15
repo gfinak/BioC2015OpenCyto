@@ -8,10 +8,11 @@ Maintainer: Greg Finak <gfinak@fhcrc.org>
 Description: Data and code demonstrating the analysis of designed experiments using OpenCyto.
 License: GPL 3.0
 DataVersion: 0.1.0
-Imports: flowWorkspace,
-    openCyto,
-    ggcyto,
+Depends: ggcyto, flowWorkspace, openCyto
+Imports: 
     data.table (>= 1.9.4)
 Suggests: knitr, 
-    RColorBrewer
+    RColorBrewer,
+    COMPASS,
+    scales
 VignetteBuilder: knitr

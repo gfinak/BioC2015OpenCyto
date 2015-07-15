@@ -6,8 +6,8 @@
 \title{FCM data from an ICS assay of TB infected and uninfected subjects with low and high immune responses to Tb-specific antigen.}
 \format{a \code{GatingSet}
 \describe{
-A GatingSet of 40 samples from 20 subjects, stimulated with ESAT-6 or DMSO negative control. 10 subjects are
-high responders, and 10 are low responders.
+A GatingSet of 32 samples from 16 subjects, stimulated with ESAT-6 or DMSO negative control. 8 subjects are
+high responders, and 8 are low responders.
 }}
 \source{
 {

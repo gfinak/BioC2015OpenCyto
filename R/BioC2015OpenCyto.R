@@ -8,7 +8,6 @@ rm(list=objects())
 #' @name BioC2015OpenCyto
 #' @description Data and code demonstrating the analysis of designed experiments using OpenCyto.
 #' @details Demonstrates how to use  the OpenCyto framework to gate FCM data utilizing study metadata to structure the gating to use controls
-#' @import flowWorkspace openCyto
 #' @seealso \link{tbdata}
 NULL
 

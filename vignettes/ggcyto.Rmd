@@ -57,13 +57,14 @@ It usually doesn't make sense to visualize 100's or FCS samples, so we'll subset
 # Subset the data for a demo of visualization.
 ptids <- unique(pData(tbdata)[["PID"]])[1:2] 
 tbdata <- subset(tbdata, `PID` %in% ptids)
+Rm("CD4",tbdata)
 ```
 
 Furthermore, we'll focus on the CD3+ cell subsets for this demonstration. These are extracted into a `flowSet`. 
 
 ```{r}
 # extract the CD3 population
-fs <- getData(tbdata, "3+")
+fs <- getData(tbdata, "CD3")
 ```
 
 ### [ggcyto + flowSet](https://github.com/RGLab/ggcyto/blob/master/vignettes/ggcyto.flowSet.md)
@@ -166,7 +167,8 @@ One way to do so is to extract the gate from the `GatingSet` and add it explicit
 
 ```{r}
 # add geom_gate layer
-g <- getGate(tbdata, "4+")
+p <- ggcyto(fs, aes(x = CD4, y = CD8)) + geom_hex(bins = 60) + ylim(c(-100,4e3)) + xlim(c(-100,3e3))  
+g <- getGate(tbdata, "CD4+")
 p <- p + geom_gate(g)
 p
 ```
@@ -204,7 +206,7 @@ Again, dimensions are mapped to aesthetics using marker names.
 ```{r}
 #use customized range to overwrite the default data limits 
 myPars <- ggcyto_par_set(limits = list(y = c(-100,4e3), x = c(-100,3e3)))
-p <- ggcyto(tbdata, aes(x = CD4, y = CD8), subset = "3+") 
+p <- ggcyto(tbdata, aes(x = CD4, y = CD8), subset = "CD3") 
 p <- p + geom_hex(bins = 64) + myPars
 p
 ```
@@ -225,14 +227,14 @@ One gate.
 
 ```{r}
 # add gate
-p + geom_gate("4+")
+p + geom_gate("CD4+CD8-")
 ```
 
 Two gates.
 
 ```{r}
 # add two gates
-p <- p + geom_gate(c("4+","8+")) 
+p <- p + geom_gate(c("CD4+CD8-","CD4-CD8-")) 
 p
 ```
 
@@ -246,14 +248,14 @@ Overlay population statistics for just one population.
 
 ```{r}
 # add stats just for one specific gate
-p + geom_stats("4+")
+p + geom_stats("CD4+CD8-")
 ```
 
 Change the background color, style, and report the count rather than the percentage.
 
 ```{r}
 # change stats type, background color and position
-p + geom_stats("4+", type = "count", size = 6,  color = "white", fill = "black", adjust = 0.3)
+p + geom_stats("CD4+CD8-", type = "count", size = 6,  color = "white", fill = "black", adjust = 0.3)
 ```
 
 As you can see there is a great deal of flexibility in using the `ggplot2` interface to interact with FCM plots. 
@@ -266,7 +268,7 @@ To do this with ggCyto would look like:
 
 ```{r}
 #'subset' is ommitted
-p <- ggcyto(tbdata, aes(x = CD4, y = CD8)) + geom_hex(bins = 64) + myPars + geom_gate(c("4+", "8+"))
+p <- ggcyto(tbdata, aes(x = CD4, y = CD8)) + geom_hex(bins = 64) + myPars + geom_gate(c("CD4+CD8-", "CD4-CD8-"))
 p
 ```
 
@@ -277,7 +279,9 @@ We define the dimensions and the gates. There's no need to specify the parent po
 The `subset` argument allows us to explicitly subset a parent population. When `subset` is specified, `ggCyto` plots *all* child populations. 
 
 ```{r}
-p <- ggcyto(tbdata, aes(x = CD4, y = CD8), subset = "3+") + geom_hex(bins = 64) + geom_gate() + geom_stats() + myPars
+Rm("CD8+",tbdata)
+Rm("CD4+",tbdata)
+p <- ggcyto(tbdata, aes(x = CD4, y = CD8), subset = "CD3") + geom_hex(bins = 64) + geom_gate() + geom_stats() + myPars
 p 
 ```
 

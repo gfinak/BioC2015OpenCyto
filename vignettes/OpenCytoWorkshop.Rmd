@@ -9,23 +9,23 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
-```{r, echo = FALSE, results = "hide"}
+```{r preamble, echo = FALSE, results = "hide"}
 library(knitr)
-opts_chunk$set(error=FALSE, message = FALSE, eval = TRUE, warning = FALSE)
+opts_chunk$set(error=FALSE, message = FALSE, eval = TRUE, warning = FALSE, cache=FALSE,fig.width=7,fig.height=7)
 ```
 
-```{r, echo=FALSE, results = "hide"}
+```{r libs, echo=FALSE, results = "hide"}
 library(BioC2015OpenCyto)
-library(openCyto)
 library(ggcyto)
 data(tbdata)
+library(openCyto)
 ```
 
 ## Welcome to the OpenCyto workshop!
 
 ### Data
 
-The `tbdata` GatingSet is part of a data set of intracellular cytokine staining (ICS) samples from TB-infected and non-infected subjects, stimulated with TB-specific and non-specific peptides. The samples were assayed for Ag-specific response to stimulation. The data were analyzed in @Lin:2015hy . 
+The `tbdata` GatingSet is part of a data set of intracellular cytokine staining (ICS) samples from TB-infected and non-infected subjects, stimulated with TB-specific and non-specific peptides. The samples were assayed for Ag-specific response to stimulation. The data were analyzed in @Lin:2015hy, using results from manual gating. 
 
 ### The data structures and objects underlying OpenCyto and the BioConductor Flow Cytometry Infrastructure
 
@@ -71,7 +71,7 @@ The data were imported from a manual gating analysis. We'll begin by deleting th
 The general gating scheme we'll apply here is `root/Singlets/CD14-/nonDebris/Lymphocytes/Live/CD3/CD4/Functional markers`.
 
 
-```{r}
+```{r clean}
 #Delete existing gates
 Rm("Singlets",tbdata)
 ```
@@ -80,7 +80,7 @@ Next, we'll use the new API `add_pop` in openCyto to build our new automated gat
 
 We'll grab a subset of the data for testing.
 
-```{r}
+```{r subset}
 tbdata_subset = subset(tbdata,`PID`%in%unique(pData(tbdata)$`PID`)[1:2])
 ```
 
@@ -88,38 +88,48 @@ tbdata_subset = subset(tbdata,`PID`%in%unique(pData(tbdata)$`PID`)[1:2])
 ### Add a singlet population
 We'll build up our gating template incrementally. 
 
-```{r,warning=FALSE,error=FALSE}
-template = add_pop(tbdata_subset, alias = "Singlets", pop = "Singlets", parent = "root", dims = "FSC-A,FSC-H",gating_method = "singletGate",gating_args="wider_gate=TRUE,subsample_pct=0.1")
+```{r singlets,warning=FALSE,error=FALSE}
+template = add_pop(
+  tbdata_subset, alias = "Singlets", pop = "Singlets", parent = "root", dims = "FSC-A,FSC-H",gating_method = "singletGate",gating_args =
+  "wider_gate=TRUE,subsample_pct=0.1"
+  )
 ```
 
 Plotting it, we see it looks reasonable.
 
-```{r}
-ggcyto(tbdata_subset,mapping = aes(x=`FSC-A`,y=`FSC-H`))+geom_hex(bins=50)+geom_gate("Singlets")+xlim(c(0,2e5))
+```{r plot_singlets}
+ggcyto(tbdata_subset,mapping = aes(x = `FSC-A`,y = `FSC-H`)) + geom_hex(bins =
+                                                                          50) + geom_gate("Singlets") + xlim(c(0,2e5))
 ```
 
 #### CD14- Cells  
 
 Next we add CD14- cells. Lets' see what this dimension looks like and decide on a good gating method.
 
-```{r}
-ggcyto(tbdata_subset,mapping=aes(x="CD14"),subset = "Singlets")+geom_histogram(binwidth=100)+xlim(c(-100,4096))+facet_wrap(~PID,scales="free")
+```{r plot_cd14}
+ggcyto(tbdata_subset,mapping = aes(x = "CD14"),subset = "Singlets") + geom_histogram(binwidth =
+                                                                                       100) + xlim(c(-100,4096)) + facet_wrap( ~ PID,scales = "free")
 ```
 
 Mindensity should be able to handle this easily.
 
 #### mindensity method on CD14- 
-```{r}
-template = rbind(template,add_pop(tbdata_subset,alias = "CD14n", "CD14-", parent = "Singlets", dims = "CD14", gating_method="mindensity",groupBy = "PID",collapseDataForGating = TRUE))
+```{r cd14}
+template = rbind(
+  template,add_pop(
+  tbdata_subset,alias = "CD14n", "CD14-", parent = "Singlets", dims = "CD14", gating_method =
+  "mindensity",groupBy = "PID",collapseDataForGating = TRUE
+  )
+  )
 ```
 
-```{r}
-ggcyto(tbdata_subset,mapping=aes(x="CD14"),subset = "Singlets")+geom_histogram(binwidth=100)+xlim(c(-100,4096))+facet_wrap(~PID,scales="free")+geom_gate("CD14n")
+```{r replot_cd14}
+ggcyto(tbdata_subset,mapping = aes(x = "CD14"),subset = "Singlets") + geom_histogram(binwidth =
+                                                                                       100) + xlim(c(-100,4096)) + facet_wrap( ~ PID,scales = "free") + geom_gate("CD14n")
 ```
 
 ### Next we gate out debris
-```{r}
-Rm("nonDebris",tbdata_subset)
+```{r nondebris}
 template = template[1:2,]
   template = rbind(
   template,add_pop(
@@ -127,12 +137,13 @@ template = template[1:2,]
   "boundary",collapseDataForGating = FALSE,gating_args = "min=40000,max=2.5e5"
   )
   )
-ggcyto(tbdata_subset,mapping = aes(x = "FSC-A",y = "SSC-A"),subset = "CD14n") + geom_hex(bins = 100)+geom_gate()
+  ggcyto(tbdata_subset,mapping = aes(x = "FSC-A",y = "SSC-A"),subset = "CD14n") + geom_hex(bins = 100) +
+    geom_gate()
 ```
 
 ### And then lymphocytes
 
-```{r}
+```{r lymphocytes}
   template = rbind(
     template, add_pop(
     tbdata_subset,alias = "Lymphocytes",pop = "Lymphocytes+",parent = "nonDebris",dims = "FSC-A,SSC-A",gating_method =
@@ -146,7 +157,7 @@ ggcyto(tbdata_subset,mapping = aes(x = "FSC-A",y = "SSC-A"),subset = "CD14n") + 
 
 ### Next we gate live cells.
 
-```{r}
+```{r live}
   template = rbind(
     template, add_pop(
     tbdata_subset,alias = "Live",pop = "Live+",parent = "Lymphocytes",dims = "<Am Cyan-A>",gating_method = "boundary",gating_args = "min=0,max=2000",collapseDataForGating = FALSE
@@ -160,7 +171,7 @@ ggcyto(tbdata_subset,mapping = aes(x = "FSC-A",y = "SSC-A"),subset = "CD14n") + 
 
 ### Then CD3+ cells
 
-```{r}
+```{r cd3}
     template = rbind(
       template, add_pop(
       tbdata_subset,alias = "CD3",pop = "CD3+",parent = "Live",dims = "CD3",gating_method = "mindensity"
@@ -172,7 +183,7 @@ ggcyto(tbdata_subset,mapping = aes(x = "FSC-A",y = "SSC-A"),subset = "CD14n") + 
 
 ### And finally CD4+/CD8- cells
 
-```{r}
+```{r cd4cd8}
       template = rbind(
         template, add_pop(
         tbdata_subset,alias = "*",pop = "CD4+/-CD8+/-",dims = "CD4,CD8",gating_method =
@@ -189,7 +200,7 @@ In order to make inferences on the proportions of cytokine positive cells in the
 
 The cytokines of interest are: 
 
-```{r,results='asis'}
+```{r table,results='asis'}
 kable(pData(parameters(getData(tbdata_subset[[1]])))[,1:2],row.names=FALSE)
 ```
 
@@ -197,7 +208,7 @@ AViD, CD14, CD3, CD4 and CD8 are phenotypic markers. We want to gate IL2, IFNg, 
 
 #### TNFa
 
-```{r}
+```{r tnf}
         template = rbind(
           template, add_pop(
           tbdata_subset,alias = "TNF",pop = "TNF+",dims = "TNFa",gating_method = "tailgate",gating_args = "auto_tol=TRUE",parent =
@@ -211,7 +222,7 @@ AViD, CD14, CD3, CD4 and CD8 are phenotypic markers. We want to gate IL2, IFNg, 
 
 #### IL2 
 
-```{r}
+```{r il2}
           template = rbind(
             template, add_pop(
             tbdata_subset,alias = "IL2",pop = "IL2+",dims = "IL2",gating_method = "tailgate",gating_args = "auto_tol=TRUE",parent =
@@ -225,7 +236,7 @@ AViD, CD14, CD3, CD4 and CD8 are phenotypic markers. We want to gate IL2, IFNg, 
 
 #### IL22
 
-```{r}
+```{r il22}
           template = rbind(
             template, add_pop(
             tbdata_subset,alias = "IL22",pop = "IL22+",dims = "IL22",gating_method =
@@ -239,31 +250,59 @@ AViD, CD14, CD3, CD4 and CD8 are phenotypic markers. We want to gate IL2, IFNg, 
 
 #### IL4
 
-```{r}
-template = rbind(template, add_pop(tbdata_subset,alias = "IL4",pop = "IL4+",dims="IL4",gating_method="tailgate",gating_args = "auto_tol=TRUE",parent="CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"))
-ggcyto(tbdata_subset,mapping=aes(x="IL4",y="SSC-A"),subset = "CD4+CD8-")+geom_hex(bins=100)+ggcyto_par_set(limits = "instrument")+geom_gate()+facet_grid(PID~Peptide,scale="free")+geom_gate()
+```{r il4}
+          template = rbind(
+            template, add_pop(
+            tbdata_subset,alias = "IL4",pop = "IL4+",dims = "IL4",gating_method = "tailgate",gating_args = "auto_tol=TRUE",parent =
+            "CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"
+            )
+            )
+            ggcyto(tbdata_subset,mapping = aes(x = "IL4",y = "SSC-A"),subset = "CD4+CD8-") +
+            geom_hex(bins = 100) + ggcyto_par_set(limits = "instrument") + geom_gate() +
+            facet_grid(PID ~ Peptide,scale = "free") + geom_gate()
 ```
 
 #### CD154
 
-```{r}
-template = rbind(template, add_pop(tbdata_subset,alias = "CD154",pop = "CD154+",dims="CD154",gating_method="tailgate",gating_args = "auto_tol=TRUE",parent="CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"))
-ggcyto(tbdata_subset,mapping=aes(x="CD154",y="SSC-A"),subset = "CD4+CD8-")+geom_hex(bins=100)+ggcyto_par_set(limits = "instrument")+geom_gate()+facet_grid(PID~Peptide,scale="free")+geom_gate()
+```{r cd154}
+            template = rbind(
+              template, add_pop(
+              tbdata_subset,alias = "CD154",pop = "CD154+",dims = "CD154",gating_method =
+              "tailgate",gating_args = "auto_tol=TRUE",parent = "CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"
+              )
+              )
+              ggcyto(tbdata_subset,mapping = aes(x = "CD154",y = "SSC-A"),subset = "CD4+CD8-") +
+              geom_hex(bins = 100) + ggcyto_par_set(limits = "instrument") + geom_gate() +
+              facet_grid(PID ~ Peptide,scale = "free") + geom_gate()
 ```
 
 
 #### IFNg
 
-```{r}
-template = rbind(template, add_pop(tbdata_subset,alias = "IFNg",pop = "IFNg+",dims="IFNg",gating_method="tailgate",gating_args = "auto_tol=TRUE",parent="CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"))
-ggcyto(tbdata_subset,mapping=aes(x="IFNg",y="SSC-A"),subset = "CD4+CD8-")+geom_hex(bins=100)+ggcyto_par_set(limits = "instrument")+geom_gate()+facet_grid(PID~Peptide,scale="free")+geom_gate()
+```{r ifng}
+              template = rbind(
+                template, add_pop(
+                tbdata_subset,alias = "IFNg",pop = "IFNg+",dims = "IFNg",gating_method =
+                "tailgate",gating_args = "auto_tol=TRUE",parent = "CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"
+                )
+                )
+                ggcyto(tbdata_subset,mapping = aes(x = "IFNg",y = "SSC-A"),subset = "CD4+CD8-") +
+                geom_hex(bins = 100) + ggcyto_par_set(limits = "instrument") + geom_gate() +
+                facet_grid(PID ~ Peptide,scale = "free") + geom_gate()
 ```
 
 #### IL17a
 
-```{r}
-template = rbind(template, add_pop(tbdata_subset,alias = "IL17a",pop = "IL17a+",dims="IL17a",gating_method="tailgate",gating_args = "auto_tol=TRUE",parent="CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"))
-ggcyto(tbdata_subset,mapping=aes(x="IL17a",y="SSC-A"),subset = "CD4+CD8-")+geom_hex(bins=100)+ggcyto_par_set(limits = "instrument")+geom_gate()+facet_grid(PID~Peptide,scale="free")+geom_gate()
+```{r il17a}
+                template = rbind(
+                  template, add_pop(
+                  tbdata_subset,alias = "IL17a",pop = "IL17a+",dims = "IL17a",gating_method =
+                  "tailgate",gating_args = "auto_tol=TRUE",parent = "CD4+CD8-",collapseDataForGating = TRUE,groupBy = "PID"
+                  )
+                  )
+                  ggcyto(tbdata_subset,mapping = aes(x = "IL17a",y = "SSC-A"),subset = "CD4+CD8-") +
+                  geom_hex(bins = 100) + ggcyto_par_set(limits = "instrument") + geom_gate() +
+                  facet_grid(PID ~ Peptide,scale = "free") + geom_gate()
 ```
 
 ### Gating of the complete data set.
@@ -272,7 +311,7 @@ Now that we've built up our gating template we can apply it to the remainder of 
 
 We write out our gating template.
 
-```{r}
+```{r clean2}
 tmp = tempfile(fileext=".csv")
 write.csv(template,tmp,row.names=FALSE)
 gt = gatingTemplate(tmp)
@@ -282,7 +321,7 @@ Rm("Singlets",tbdata) #Remove any gates attached to the GatingSet
 
 We do the gating in parallel.
 
-```{r,eval=FALSE}
+```{r gating}
 library(parallel)
 #clean up our gating set
 gating(gt,tbdata,parallel_type="multicore",mc.cores=7)
@@ -294,26 +333,33 @@ We can examine the population statistics for the different cell populations. The
 
 Barplots of the coefficient of variation of each cell population, faceted by its parent population, and the peptide stimulation. 
 
-```{r}
+```{r qc}
 stats = getPopStats(tbdata) #extract stats
 stats[,prop := Count/ParentCount] #compute the cell proportions
 stats = merge(stats,pData(tbdata),by="name")
 data.table::setDT(stats)
-ggplot(stats[,.(CV=mad(prop)/median(prop)),.(Parent,Peptide,Population)])+geom_bar(position="dodge",stat="identity")+aes(y=CV,x=Population,fill=Peptide)+theme(axis.text.x=element_text(angle=90,hjust=1))+facet_wrap(~Parent,scales="free_x")
+ggplot(stats[,.(CV = mad(prop) / median(prop)),.(Parent,Peptide,Population)]) +
+  geom_bar(position = "dodge",stat = "identity") + aes(y = CV,x = Population,fill =
+  Peptide) + theme(axis.text.x = element_text(angle = 90,hjust = 1)) + facet_wrap( ~
+  Parent,scales = "free_x")
 ```
 
 Proportions of each cell population. 
 
-```{r}
-ggplot(stats)+geom_boxplot()+aes(y=prop,x=Population)+geom_jitter()+theme(axis.text.x=element_text(angle=90,hjust=1))+facet_wrap(~Parent,scales="free")
+```{r qc2}
+ggplot(stats) + geom_boxplot() + aes(y = prop,x = Population) + geom_jitter() +
+  theme(axis.text.x = element_text(angle = 90,hjust = 1)) + facet_wrap( ~
+  Parent,scales = "free")
 ```
 
 There are some clear outliers in the CD8 population. We can have a closer look at those samples.
 
-```{r}
-nm  = stats[,.(name,rZ = (prop-median(prop))/mad(prop)),.(Population)][,.(outlier = abs(rZ)>3),.(name,Population)][outlier==TRUE][order(name)][Population%in%"CD8+"]$name
-
-ggcyto(tbdata[as.character(nm)],mapping=aes(x="CD8"),subset="CD3")+geom_histogram(binwidth=25)+geom_gate("CD8+")
+```{r qc3}
+nm  = stats[,.(name,rZ = (prop - median(prop)) / mad(prop)),.(Population)][,.(outlier = abs(rZ) >
+                                                                                3),.(name,Population)][outlier == TRUE][order(name)][Population %in% "CD8+"]$name
+                                                                                
+                                                                                ggcyto(tbdata[as.character(nm)],mapping = aes(x = "CD8"),subset = "CD3") +
+                                                                                geom_histogram(binwidth = 25) + geom_gate("CD8+")
 ```
 
 We see the issue is one sample where the automated gate completely failed to find the CD8+ cells. For some reason they are really poorly resolved in this sample, even in the original manual gating. 
@@ -323,38 +369,39 @@ We see the issue is one sample where the automated gate completely failed to fin
 We can decide to set a hard threshold at 1750  for the CD8+ cells. 
 We adjust all the gates for the CD8 containing cell populations
 
-```{r}
-mygate = getGate(tbdata[["366621.fcs"]],"CD8+") #extract a gates
-mygate@min[<PerCP Cy55 Blue-A>] = 1750 #adjust the min value for CD8
-setGate(tbdata[["366621.fcs"]],"CD8+",mygate) #set the gate for the cell population
-recompute(tbdata[["366621.fcs"]]) # recompute the statistics.
+```{r manual_gating}
+for(n in nm){
+  mygate = getGate(tbdata[[n]],"CD8+") #extract a gates
+  mygate@min["<PerCP Cy55 Blue-A>"] = 1750 #adjust the min value for CD8
+  setGate(tbdata[[n]],"CD8+",mygate) #set the gate for the cell population
+  recompute(tbdata[[n]]) # recompute the statistics.
 
-#again for the others
-mygate = getGate(tbdata[["366621.fcs"]],"CD4-CD8+")
-mygate@min["<PerCP Cy55 Blue-A>"]=1750
-mygate@max["<PerCP Cy55 Blue-A>"]=Inf
-setGate(tbdata[["366621.fcs"]],"CD4-CD8+",mygate)
-
-
-mygate = getGate(tbdata[["366621.fcs"]],"CD4+CD8-")
-mygate@max["<PerCP Cy55 Blue-A>"]=1750
-setGate(tbdata[["366621.fcs"]],"CD4+CD8-",mygate)
+  #again for the others
+  mygate = getGate(tbdata[[n]],"CD4-CD8+")
+  mygate@min["<PerCP Cy55 Blue-A>"]=1750
+  mygate@max["<PerCP Cy55 Blue-A>"]=Inf
+  setGate(tbdata[[n]],"CD4-CD8+",mygate)
 
 
-mygate = getGate(tbdata[["366621.fcs"]],"CD4-CD8-")
-mygate@max["<PerCP Cy55 Blue-A>"]=1750
-setGate(tbdata[["366621.fcs"]],"CD4-CD8-",mygate)
+  mygate = getGate(tbdata[[n]],"CD4+CD8-")
+  mygate@max["<PerCP Cy55 Blue-A>"]=1750
+  setGate(tbdata[[n]],"CD4+CD8-",mygate)
 
-mygate = getGate(tbdata[["366621.fcs"]],"CD4+CD8+")
-mygate@min["<PerCP Cy55 Blue-A>"]=1750
-setGate(tbdata[["366621.fcs"]],"CD4+CD8+",mygate)
+  mygate = getGate(tbdata[[n]],"CD4-CD8-")
+  mygate@max["<PerCP Cy55 Blue-A>"]=1750
+  setGate(tbdata[[n]],"CD4-CD8-",mygate)
 
-recompute(tbdata[["366621.fcs"]],"CD4-CD8+")
-recompute(tbdata[["366621.fcs"]],"CD4+CD8-")
-recompute(tbdata[["366621.fcs"]],"CD4-CD8-")
-recompute(tbdata[["366621.fcs"]],"CD4+CD8+")
+  mygate = getGate(tbdata[[n]],"CD4+CD8+")
+  mygate@min["<PerCP Cy55 Blue-A>"]=1750
+  setGate(tbdata[[n]],"CD4+CD8+",mygate)
 
-plotGate(tbdata[["366621.fcs"]],c("CD4+CD8-","CD4-CD8+","CD4-CD8-","CD4+CD8+"),xbin=256,margin=FALSE)
+  recompute(tbdata[[n]],"CD4-CD8+")
+  recompute(tbdata[[n]],"CD4+CD8-")
+  recompute(tbdata[[n]],"CD4-CD8-")
+  recompute(tbdata[[n]],"CD4+CD8+")
+}
+plotGate(tbdata[as.character(nm)],c("CD4+CD8-","CD4-CD8+","CD4-CD8-","CD4+CD8+"),
+         xbin=256,margin=FALSE)
 ```
 
 The above at least reflects what we expect from the biology, few double positive T-cells.
@@ -364,7 +411,7 @@ The above at least reflects what we expect from the biology, few double positive
 
 We'll have a look at the proportion of cytokine positive cells in ESAT-6 and DMSO stimulated samples for each subject.
 
-```{r}
+```{r empirical_diff}
 library(scales)
 #custom hyperbolic arcsine transformation.
 asinh_trans = function (c=800) 
@@ -378,7 +425,14 @@ stats = stats[Parent=="CD4+CD8-"][,prop:=Count/ParentCount]
 stats=reshape2::dcast(stats,PID+Population+Parent~Peptide)
 
 
-ggplot(stats)+geom_boxplot(outlier.colour = NA)+geom_jitter(aes(fill=Population),position=position_jitterdodge())+aes(x=Population,y=pmax(`ESAT-6`-DMSO,0),col=Population)+facet_wrap(~Parent,scales="free")+theme(axis.text.x=element_text(angle=90,hjust=1))+scale_y_continuous("Background Corrected Proportion",trans="asinh")+ggtitle("Marginal Background Corrected Proportions\nof Cytokine Producing CD4 Cells")+scale_x_discrete("Marginal Cytokine")
+ggplot(stats) + geom_boxplot(outlier.colour = NA) + geom_jitter(aes(fill =
+      Population),position = position_jitterdodge()) + aes(x = Population,y =
+      pmax(`ESAT-6` - DMSO,0),col = Population) + facet_wrap( ~ Parent,scales =
+      "free") + theme(axis.text.x = element_text(angle = 90,hjust = 1)) +
+      scale_y_continuous("Background Corrected Proportion",trans =
+      "asinh") + 
+      ggtitle("Marginal Background Corrected Proportions\nof Cytokine Producing CD4 Cells") +
+                                                                      scale_x_discrete("Marginal Cytokine")
 ```
 
 There are some clear marginal responses in IFNg, IL2, IL17a.  We can look at combinatorial subsets of cells using the COMPASS framework, which models antigen-specific responses jointly in all cell subsets.
@@ -389,30 +443,37 @@ COMPASS will test whether the ESAT-6 stimulation is greater than the DMSO stimul
 
 It returns a probability of response. 
 
-```{r}
+```{r compass}
 library(COMPASS)
 data = getSingleCellExpression(tbdata,nodes = c("IL2","IFNg","CD154","IL17a","IL4","TNF","IL22")) #single-cell expression of seven markers
-counts = as.vector(getPopStats(tbdata,subpopulations="CD4+CD8-",statistic="count")[,.(name,Count)])  #parent population cell counts
-counts = as.vector(as.matrix(counts[,2,with=FALSE]))
+counts = as.vector(getPopStats(tbdata,subpopulations = "CD4+CD8-",statistic =
+"count")[,.(name,Count)])  #parent population cell counts
+counts = as.vector(as.matrix(counts[,2,with = FALSE]))
 names(counts) = names(data)
 meta = pData(tbdata) #metadata
 
-CC = COMPASSContainer(data=data,counts=counts,meta=meta,individual_id = "PID",sample_id = "name")
+CC = COMPASSContainer(
+data = data,counts = counts,meta = meta,individual_id = "PID",sample_id = "name"
+)
 set.seed(100)
-compass_result = COMPASS(CC,treatment=Peptide=="ESAT-6",control=Peptide=="DMSO",)
+compass_result = COMPASS(CC,treatment = Peptide == "ESAT-6",control = Peptide ==
+"DMSO")
 ```
 
 
 #### Heatmap of posterior probability of response
 
-```{r}
-plot(compass_result,threshold=0.01)
+```{r heatmap}
+p = plot(compass_result,threshold=0.01)
 ```
+
 
 #### Functionality score
 
-```{r}
-ggplot(cbind(compass_result$data$meta,PFS=FunctionalityScore(compass_result)))+geom_boxplot(outlier.colour=NA)+geom_jitter(aes(col=known_response))+aes(x=known_response,y=PFS)+theme_gray()
+```{r fs}
+ggplot(cbind(compass_result$data$meta,PFS = FunctionalityScore(compass_result))) +
+  geom_boxplot(outlier.colour = NA) + geom_jitter(aes(col = known_response)) +
+  aes(x = known_response,y = PFS) + theme_gray()
 ```
 
 The differences between the `known_response` variable and the calculated polyfunctionality scores are due to 
@@ -424,4 +485,4 @@ The differences between the `known_response` variable and the calculated polyfun
 
 Hopefully this provides you with a sufficient introduction to some of the new features and new API of openCyto. 
 
-
+## References
