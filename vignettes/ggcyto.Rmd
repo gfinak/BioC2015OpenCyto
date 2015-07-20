@@ -78,7 +78,7 @@ Here we specify that we want a histogram, and we map the aesthetic `x` to the va
 
 ```{r}
 p <- ggcyto(fs, aes(x = CD4)) 
-p1 <- p + geom_histogram(bins = 60) 
+p1 <- p + geom_histogram(bin = 60) 
 p1
 ```
 
