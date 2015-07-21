@@ -44,4 +44,3 @@ if (f != "") {
 }else{
   message("Not loading data until package is installed")
 }
-rm(list = c("datafile","f","filepath"))
